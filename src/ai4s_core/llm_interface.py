@@ -182,13 +182,32 @@ Output ONLY valid JSON. No markdown, no explanations."""
                 json_str = response.split("```")[1].split("```")[0].strip()
                 plan = json.loads(json_str)
             else:
-                # Fallback: wrap in minimal structure
-                plan = {
-                    "steps": [],
-                    "estimated_compute": "unknown",
-                    "required_software": [],
-                    "validation_checks": [],
-                    "raw_response": response,
-                }
+                # Try to find JSON object boundaries
+                try:
+                    start = response.index("{")
+                    # Find matching closing brace
+                    depth = 0
+                    end = start
+                    for i, c in enumerate(response[start:]):
+                        if c == '{':
+                            depth += 1
+                        elif c == '}':
+                            depth -= 1
+                            if depth == 0:
+                                end = start + i + 1
+                                break
+                    if end > start:
+                        plan = json.loads(response[start:end])
+                    else:
+                        raise json.JSONDecodeError("No matching closing brace", response, len(response))
+                except (ValueError, json.JSONDecodeError):
+                    # Fallback: wrap in minimal structure
+                    plan = {
+                        "steps": [],
+                        "estimated_compute": "unknown",
+                        "required_software": [],
+                        "validation_checks": [],
+                        "raw_response": response,
+                    }
 
         return plan

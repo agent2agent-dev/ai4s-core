@@ -1,0 +1,123 @@
+{
+  "steps": [
+    {
+      "tool": "gmx pdb2gmx",
+      "command": "gmx pdb2gmx -f 1ubq.pdb -o protein_processed.gro -ff amber99sb-ildn -water tip3p -ignh",
+      "inputs": {
+        "pdb_file": "1ubq.pdb",
+        "force_field": "amber99sb-ildn",
+        "water_model": "tip3p"
+      },
+      "outputs": {
+        "processed_structure": "protein_processed.gro",
+        "topology": "topol.top"
+      },
+      "dependencies": [],
+      "description": "Process the ubiquitin PDB file, assign the AMBER99SB-ILDN force field, generate topology, and prepare the structure for solvation."
+    },
+    {
+      "tool": "gmx solvate",
+      "command": "gmx solvate -cp protein_processed.gro -cs spc216.gro -o solvated.gro -p topol.top -box 4.0 4.0 4.0",
+      "inputs": {
+        "protein_structure": "protein_processed.gro",
+        "topology": "topol.top",
+        "box_size": "4.0 4.0 4.0"
+      },
+      "outputs": {
+        "solvated_structure": "solvated.gro",
+        "updated_topology": "topol.top"
+      },
+      "dependencies": [
+        "0"
+      ],
+      "description": "Place the protein in a cubic water box with a minimum distance of 1.0 nm from the box edge using TIP3P water molecules."
+    },
+    {
+      "tool": "gmx genion",
+      "command": "gmx grompp -f ions.mdp -c solvated.gro -p topol.top -o ions.tpr && gmx genion -s ions.tpr -o solvated_ions.gro -p topol.top -pname NA -nname CL -neutral",
+      "inputs": {
+        "solvated_structure": "solvated.gro",
+        "topology": "topol.top",
+        "mdp_file": "ions.mdp"
+      },
+      "outputs": {
+        "ion_structure": "solvated_ions.gro",
+        "updated_topology": "topol.top"
+      },
+      "dependencies": [
+        "1"
+      ],
+      "description": "Replace solvent molecules with Na+ and Cl- ions to neutralize the system charge."
+    },
+    {
+      "tool": "gmx mdrun",
+      "command": "gmx grompp -f em.mdp -c solvated_ions.gro -p topol.top -o em.tpr && gmx mdrun -deffnm em -v -nb gpu -pme gpu",
+      "inputs": {
+        "ion_structure": "solvated_ions.gro",
+        "topology": "topol.top",
+        "mdp_file": "em.mdp"
+      },
+      "outputs": {
+        "minimized_structure": "em.gro",
+        "energy_file": "em.edr",
+        "trajectory": "em.trr"
+      },
+      "dependencies": [
+        "2"
+      ],
+      "description": "Perform energy minimization using steepest descent algorithm to remove steric clashes and high-energy contacts."
+    },
+    {
+      "tool": "gmx mdrun",
+      "command": "gmx grompp -f nvt.mdp -c em.gro -p topol.top -o nvt.tpr && gmx mdrun -deffnm nvt -v -nb gpu -pme gpu -bonded gpu",
+      "inputs": {
+        "minimized_structure": "em.gro",
+        "topology": "topol.top",
+        "mdp_file": "nvt.mdp"
+      },
+      "outputs": {
+        "nvt_structure": "nvt.gro",
+        "nvt_trajectory": "nvt.xtc",
+        "nvt_energy": "nvt.edr"
+      },
+      "dependencies": [
+        "3"
+      ],
+      "description": "Run NVT equilibration at 300 K for 100 ps using V-rescale thermostat to stabilize temperature."
+    },
+    {
+      "tool": "gmx mdrun",
+      "command": "gmx grompp -f npt.mdp -c nvt.gro -p topol.top -o npt.tpr && gmx mdrun -deffnm npt -v -nb gpu -pme gpu -bonded gpu",
+      "inputs": {
+        "nvt_structure": "nvt.gro",
+        "topology": "topol.top",
+        "mdp_file": "npt.mdp"
+      },
+      "outputs": {
+        "npt_structure": "npt.gro",
+        "npt_trajectory": "npt.xtc",
+        "npt_energy": "npt.edr"
+      },
+      "dependencies": [
+        "4"
+      ],
+      "description": "Run NPT equilibration at 300 K and 1 bar for 100 ps using Parrinello-Rahman barostat to stabilize density and pressure."
+    }
+  ],
+  "estimated_compute": "2 hours on 8 CPU cores + 1 NVIDIA GPU",
+  "required_software": [
+    "gromacs",
+    "pdb2gmx",
+    "gmx solvate",
+    "gmx genion",
+    "gmx grompp",
+    "gmx mdrun"
+  ],
+  "validation_checks": [
+    "Energy minimization must converge with max force < 1000 kJ/mol/nm",
+    "Temperature must stabilize around 300 K during NVT with fluctuations < 5 K",
+    "Density must converge to ~1000 kg/m3 during NPT",
+    "RMSD of protein backbone must plateau after initial relaxation",
+    "Box volume must remain stable during NPT equilibration"
+  ]
+}
