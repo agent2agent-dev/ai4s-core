@@ -1,0 +1,63 @@
+# Auto-generated Snakemake workflow for: Calculate the electronic band structure of silicon (diamond cubic) using DFT with the PBE exchange-correlation functional. Use a plane-wave cutoff of 40 Ry and a 8x8x8 k-point grid for SCF. Plot the band structure along the Gamma-X-W-L-Gamma high-symmetry path.
+# Domain: density_functional_theory
+
+rule step_0_wget:
+    output:
+        structure="Si.cif"
+    shell:
+        """wget https://materialsproject.org/static/cifs/Si.cif -O Si.cif"""
+
+rule step_1_cif2cell:
+    input:
+        structure="Si.cif"
+    output:
+        input="Si.pw.in"
+    shell:
+        """cif2cell Si.cif -p quantum-espresso -o Si.pw.in"""
+
+rule step_2_pw.x:
+    input:
+        input="Si.scf.in"
+    output:
+        charge_density="Si.save/charge-density.dat"
+        output="Si.scf.out"
+    shell:
+        """mpirun -np 8 pw.x -in Si.scf.in > Si.scf.out"""
+
+rule step_3_pw.x:
+    input:
+        charge_density="Si.save/charge-density.dat"
+        input="Si.bands.in"
+    output:
+        bands="Si.bands.dat"
+        output="Si.bands.out"
+    shell:
+        """mpirun -np 8 pw.x -in Si.bands.in > Si.bands.out"""
+
+rule step_4_bands.x:
+    input:
+        bands="Si.bands.dat"
+        input="Si.bands.pp.in"
+    output:
+        bands_data="Si.bands.gnu"
+        output="Si.bands.pp.out"
+    shell:
+        """bands.x -in Si.bands.pp.in > Si.bands.pp.out"""
+
+rule step_5_dos.x:
+    input:
+        charge_density="Si.save/charge-density.dat"
+        input="Si.dos.in"
+    output:
+        dos="Si.dos"
+        output="Si.dos.out"
+    shell:
+        """dos.x -in Si.dos.in > Si.dos.out"""
+
+rule step_6_gnuplot:
+    input:
+        bands_data="Si.bands.gnu"
+    output:
+        plot="Si_bands.png"
+    shell:
+        """gnuplot plot_bands.gnu"""
