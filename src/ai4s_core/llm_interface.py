@@ -126,6 +126,7 @@ class LLMInterface:
     def generate_plan(self, query: str, domain_context: str) -> Dict[str, Any]:
         """
         Generate a structured workflow plan from a query and domain context.
+        For models with limited output length, falls back to outline mode if truncated.
 
         Returns a dict with:
         - steps: list of {tool, command, inputs, outputs, dependencies, description}
@@ -133,6 +134,7 @@ class LLMInterface:
         - required_software: list of str
         - validation_checks: list of str
         """
+        # Try full plan first
         prompt = f"""You are an expert computational scientist. Given a research query and domain context, generate a detailed, executable workflow plan.
 
 Domain Context:
@@ -169,45 +171,107 @@ Output ONLY valid JSON. No markdown, no explanations."""
 
         response = self.complete(prompt, temperature=0.2, max_tokens=4000)
 
+        # Check if response was truncated (model hit output limit)
+        is_truncated = (
+            not response.strip().endswith("}") and
+            not response.strip().endswith("]") and
+            not response.strip().endswith('"')
+        )
+
         # Extract JSON from response
+        plan = self._extract_json(response)
+
+        # If truncated or empty steps, fall back to outline mode
+        if is_truncated or not plan.get("steps"):
+            print("[LLM] Output truncated or empty, falling back to outline mode...")
+            plan = self._generate_outline_plan(query, domain_context)
+
+        return plan
+
+    def _extract_json(self, response: str) -> Dict[str, Any]:
+        """Extract JSON from LLM response with multiple fallback strategies."""
         try:
-            # Try direct parse first
-            plan = json.loads(response)
+            return json.loads(response)
         except json.JSONDecodeError:
-            # Try extracting from markdown code block
-            if "```json" in response:
+            pass
+
+        # Try markdown code block
+        if "```json" in response:
+            try:
                 json_str = response.split("```json")[1].split("```")[0].strip()
-                plan = json.loads(json_str)
-            elif "```" in response:
+                return json.loads(json_str)
+            except (IndexError, json.JSONDecodeError):
+                pass
+
+        if "```" in response:
+            try:
                 json_str = response.split("```")[1].split("```")[0].strip()
-                plan = json.loads(json_str)
-            else:
-                # Try to find JSON object boundaries
-                try:
-                    start = response.index("{")
-                    # Find matching closing brace
-                    depth = 0
-                    end = start
-                    for i, c in enumerate(response[start:]):
-                        if c == '{':
-                            depth += 1
-                        elif c == '}':
-                            depth -= 1
-                            if depth == 0:
-                                end = start + i + 1
-                                break
-                    if end > start:
-                        plan = json.loads(response[start:end])
-                    else:
-                        raise json.JSONDecodeError("No matching closing brace", response, len(response))
-                except (ValueError, json.JSONDecodeError):
-                    # Fallback: wrap in minimal structure
-                    plan = {
-                        "steps": [],
-                        "estimated_compute": "unknown",
-                        "required_software": [],
-                        "validation_checks": [],
-                        "raw_response": response,
-                    }
+                return json.loads(json_str)
+            except (IndexError, json.JSONDecodeError):
+                pass
+
+        # Try brace-depth matching for partial JSON
+        try:
+            start = response.index("{")
+            depth = 0
+            end = start
+            for i, c in enumerate(response[start:]):
+                if c == '{':
+                    depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 0:
+                        end = start + i + 1
+                        break
+            if end > start:
+                return json.loads(response[start:end])
+        except (ValueError, json.JSONDecodeError):
+            pass
+
+        # Final fallback
+        return {
+            "steps": [],
+            "estimated_compute": "unknown",
+            "required_software": [],
+            "validation_checks": [],
+            "raw_response": response,
+        }
+
+    def _generate_outline_plan(self, query: str, domain_context: str) -> Dict[str, Any]:
+        """Fallback: generate a step outline without detailed commands."""
+        prompt = f"""You are an expert computational scientist. Given a research query, list the workflow steps.
+
+Domain Context:
+{domain_context[:500]}  # Truncate to save tokens
+
+Research Query:
+{query}
+
+Output a compact JSON plan. Keep descriptions short (under 100 chars). Use simple placeholder commands like "# see documentation".
+
+{{
+    "steps": [
+        {{
+            "tool": "tool_name",
+            "command": "# Step description - see docs for full command",
+            "inputs": {{}},
+            "outputs": {{}},
+            "dependencies": [],
+            "description": "short description"
+        }}
+    ],
+    "estimated_compute": "brief estimate",
+    "required_software": ["tool1"],
+    "validation_checks": ["check1"]
+}}
+
+Output ONLY valid JSON."""
+
+        response = self.complete(prompt, temperature=0.2, max_tokens=3000)
+        plan = self._extract_json(response)
+
+        # Mark as outline mode
+        plan["_mode"] = "outline"
+        plan["_note"] = "Detailed commands omitted due to model output limits. Use domain documentation for full parameters."
 
         return plan

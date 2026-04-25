@@ -1,0 +1,104 @@
+{
+  "steps": [
+    {
+      "tool": "bash",
+      "command": "cat > si.pos << 'EOF'\nSi\n0.0\nDirect\n2\nCart\n0.0000000000 0.0000000000 0.0000000000 Si\n0.2500000000 0.2500000000 0.2500000000 Si\nEOF",
+      "inputs": {},
+      "outputs": {
+        "si.pos": "Initial silicon crystal structure file"
+      },
+      "dependencies": [],
+      "description": "Create initial atomic structure file for diamond cubic silicon"
+    },
+    {
+      "tool": "pw.x",
+      "command": "pw.x < si_relax.in > si_relax.out",
+      "inputs": {
+        "si_relax.in": "Input file for structural relaxation with xc=PBE, ecutwfc=60, kpoints=12x12x12, pseudo=SSSP/PBE/paw",
+        "si.pos": "Initial structure"
+      },
+      "outputs": {
+        "si_relax.out": "Relaxation output log",
+        "si_relaxed.pos": "Relaxed atomic positions and lattice vectors"
+      },
+      "dependencies": [
+        "0"
+      ],
+      "description": "Perform structural relaxation to optimize lattice constant and atomic positions"
+    },
+    {
+      "tool": "pw.x",
+      "command": "pw.x < si_scf.in > si_scf.out",
+      "inputs": {
+        "si_scf.in": "Input file for SCF calculation with xc=PBE, ecutwfc=60, kpoints=24x24x24, pseudo=SSSP/PBE/paw, startingpot='file'",
+        "si_relaxed.pos": "Relaxed structure from previous step"
+      },
+      "outputs": {
+        "si_scf.out": "SCF output log",
+        "si_scf.save": "Charge density and potential data directory"
+      },
+      "dependencies": [
+        "1"
+      ],
+      "description": "Run self-consistent field calculation to obtain converged charge density"
+    },
+    {
+      "tool": "pw.x",
+      "command": "pw.x < si_bands.in > si_bands.out",
+      "inputs": {
+        "si_bands.in": "Input file for NSCF band calculation with xc=PBE, ecutwfc=60, kpoints=high-symmetry path Gamma-X-L-K-Gamma, pseudo=SSSP/PBE/paw, startingpot='file', startingwfc='file'",
+        "si_scf.save": "SCF charge density and wavefunctions"
+      },
+      "outputs": {
+        "si_bands.out": "NSCF output log",
+        "si_bands.save": "Band eigenvalues and wavefunctions along k-path"
+      },
+      "dependencies": [
+        "2"
+      ],
+      "description": "Perform non-self-consistent field calculation along high-symmetry k-point path"
+    },
+    {
+      "tool": "bands.x",
+      "command": "bands.x < si_bands.in > si_bands_process.out",
+      "inputs": {
+        "si_bands.in": "Input file specifying k-path and output format",
+        "si_bands.save": "NSCF band data directory"
+      },
+      "outputs": {
+        "si_bands_process.out": "Processing log",
+        "si_bands.dat": "Processed band structure data file"
+      },
+      "dependencies": [
+        "3"
+      ],
+      "description": "Process NSCF output to extract eigenvalues for plotting"
+    },
+    {
+      "tool": "gnuplot",
+      "command": "gnuplot plot_bands.gpl",
+      "inputs": {
+        "plot_bands.gpl": "Gnuplot script for band structure visualization",
+        "si_bands.dat": "Band data file"
+      },
+      "outputs": {
+        "si_bands.png": "Final band structure plot"
+      },
+      "dependencies": [
+        "4"
+      ],
+      "description": "Generate publication-quality band structure plot"
+    }
+  ],
+  "estimated_compute": "15 minutes on 4 CPU cores",
+  "required_software": [
+    "Quantum ESPRESSO",
+    "gnuplot"
+  ],
+  "validation_checks": [
+    "Relaxation forces must be less than 1e-4 Ry/Bohr",
+    "Band gap should be within 10% of experimental value (~1.1 eV indirect)",
+    "K-point path must include Gamma, X, L, and K high-symmetry points",
+    "SCF convergence energy threshold < 1e-8 Ry"
+  ]
+}
