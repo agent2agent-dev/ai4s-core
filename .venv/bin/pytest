@@ -1,8 +1,0 @@
-#!/workspace/d3168165-c968-48da-9265-167643ec51f9/repos/ai4s-core/.venv/bin/python3
-# -*- coding: utf-8 -*-
-import re
-import sys
-from pytest import console_main
-if __name__ == '__main__':
-    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
-    sys.exit(console_main())
