@@ -27,8 +27,14 @@ If you've ever:
 # Install
 pip install ai4s-core
 
-# Set your LLM API key (OpenAI, Anthropic, or local via Ollama)
-export OPENAI_API_KEY="sk-..."
+# Set your LLM API key — supports OpenAI, DeepSeek, Anthropic, or local via Ollama
+export AI4S_LLM_PROVIDER="openai"
+export AI4S_LLM_API_KEY="sk-..."
+
+# Or use DeepSeek (cheaper, no proxy needed in China)
+export AI4S_LLM_PROVIDER="deepseek"
+export AI4S_LLM_API_KEY="sk-..."
+export AI4S_LLM_MODEL="deepseek-chat"
 
 # Generate a workflow
 ai4s plan "Run a GROMACS molecular dynamics simulation for protein equilibration"
@@ -71,6 +77,18 @@ ai4s plan "Simulate ubiquitin in water" --mock
 | **Mock Mode** | Demo without API keys |
 
 ---
+
+## Supported LLM Providers
+
+| Provider | Setup | Best For |
+|----------|-------|----------|
+| **OpenAI** | `export AI4S_LLM_PROVIDER="openai"` | Best quality, highest cost |
+| **DeepSeek** | `export AI4S_LLM_PROVIDER="deepseek"` | Cheapest, China-friendly, great for science |
+| **Anthropic** | `export AI4S_LLM_PROVIDER="anthropic"` | Long context, careful reasoning |
+| **Ollama** | `export AI4S_LLM_PROVIDER="ollama"` | Free, local, privacy-first |
+| **vLLM** | `export AI4S_LLM_PROVIDER="vllm"` | Self-hosted, high throughput |
+
+All providers use the same `AI4S_LLM_API_KEY` env var. DeepSeek and Ollama use OpenAI-compatible APIs internally.
 
 ## Supported Scientific Domains
 

@@ -72,6 +72,18 @@ class LLMInterface:
             except ImportError:
                 raise ImportError("Install openai for vLLM support: pip install openai")
 
+        elif self.provider == "deepseek":
+            # DeepSeek uses OpenAI-compatible API
+            try:
+                import openai
+                base = self.base_url or "https://api.deepseek.com"
+                self._client = openai.OpenAI(
+                    api_key=self.api_key,
+                    base_url=base,
+                )
+            except ImportError:
+                raise ImportError("Install openai for DeepSeek support: pip install openai")
+
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
 
@@ -98,6 +110,16 @@ class LLMInterface:
                 messages=[{"role": "user", "content": prompt}],
             )
             return response.content[0].text if response.content else ""
+
+        elif self.provider in ("ollama", "vllm", "deepseek"):
+            # All use OpenAI-compatible API
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return response.choices[0].message.content or ""
 
         return ""
 
