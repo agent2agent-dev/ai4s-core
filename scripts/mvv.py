@@ -73,7 +73,7 @@ def main():
     
     # Step 1: Generate workflow (mock mode)
     ok, t = run_command(
-        'python -m ai4s_core.cli plan "Run MD simulation of 1UBQ" --mock --json > /tmp/mvv-plan.json 2>/dev/null',
+        'python3 -m ai4s_core.cli plan "Run MD simulation of 1UBQ" --mock --json > /tmp/mvv-plan.json 2>/dev/null',
         "Generate workflow (mock mode, no API key)"
     )
     results.append(("Workflow generation", ok, t))
@@ -92,7 +92,7 @@ def main():
     
     # Step 2: Export to Python
     ok, t = run_command(
-        'python -m ai4s_core.cli plan "Run MD simulation of 1UBQ" --mock --format python > /tmp/mvv-script.py 2>/dev/null',
+        'python3 -m ai4s_core.cli plan "Run MD simulation of 1UBQ" --mock --format python > /tmp/mvv-script.py 2>/dev/null',
         "Export to Python script"
     )
     results.append(("Python export", ok, t))
@@ -102,14 +102,14 @@ def main():
     
     # Step 3: Export to Bash
     ok, t = run_command(
-        'python -m ai4s_core.cli plan "Run MD simulation of 1UBQ" --mock --format bash > /tmp/mvv-script.sh 2>/dev/null',
+        'python3 -m ai4s_core.cli plan "Run MD simulation of 1UBQ" --mock --format bash > /tmp/mvv-script.sh 2>/dev/null',
         "Export to Bash script"
     )
     results.append(("Bash export", ok, t))
     
     # Step 4: List domains
     ok, t = run_command(
-        'python -m ai4s_core.cli list-domains > /tmp/mvv-domains.txt 2>/dev/null',
+        'python3 -m ai4s_core.cli list-domains > /tmp/mvv-domains.txt 2>/dev/null',
         "List supported domains"
     )
     results.append(("List domains", ok, t))
