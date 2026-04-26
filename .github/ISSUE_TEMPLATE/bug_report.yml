@@ -1,0 +1,43 @@
+name: Bug Report
+description: Report a problem with ai4s-core
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear description of what went wrong
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: To Reproduce
+      description: Steps to reproduce
+      placeholder: |
+        1. Run command: `ai4s plan "..."`
+        2. See error
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: input
+    id: domain
+    attributes:
+      label: Scientific domain
+      placeholder: e.g. Molecular Dynamics, DFT, Bioinformatics
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        - OS: Ubuntu 22.04
+        - Python: 3.11
+        - ai4s-core: 0.1.0
+        - LLM provider: OpenAI / local vllm
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output / logs
+      render: shell

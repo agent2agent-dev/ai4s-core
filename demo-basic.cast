@@ -1,0 +1,3 @@
+{"version": 2, "width": 80, "height": 24, "timestamp": 1777185598, "env": {"SHELL": "/bin/bash", "TERM": "tmux-256color"}}
+[0.00173, "o", "=== ai4s-core Demo: Basic Workflow ===\r\n\r\n$ ai4s plan \"Run MD simulation of 1UBQ\"\r\n\r\n"]
+[0.028408, "o", "usage: ai4s [-h] {plan,list-domains,validate} ...\r\nai4s: error: unrecognized arguments: --provider mock\r\n"]

@@ -1,0 +1,42 @@
+name: New Scientific Domain
+description: Request support for a new scientific domain
+title: "[DOMAIN] "
+labels: ["new-domain", "triage"]
+body:
+  - type: input
+    id: domain_name
+    attributes:
+      label: Domain name
+      placeholder: e.g. "LAMMPS MD" or "WRF weather"
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: Primary software
+      placeholder: e.g. LAMMPS, WRF, FEniCS
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Typical workflow
+      description: Describe the typical steps
+      placeholder: |
+        1. Step 1
+        2. Step 2
+        3. Step 3
+  - type: checkboxes
+    id: validation
+    attributes:
+      label: Validation needs
+      options:
+        - label: Parameter range checks
+        - label: File format validation
+        - label: Physical sanity checks
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Would you be willing to contribute?
+      options:
+        - label: Yes, I can help implement
+        - label: Yes, I can provide domain expertise
+        - label: No, just requesting
