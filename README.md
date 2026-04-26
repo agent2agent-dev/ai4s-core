@@ -230,7 +230,7 @@ print(orch.to_script(plan, format='python'))
 - [x] Auxiliary file generation (MDP, input files, scripts)
 - [x] Error handling and validation
 - [x] Step-by-step generation for limited-output models
-- [ ] Real execution engine (run generated scripts, not just generate)
+- [x] Real execution engine (Docker + local subprocess)
 - [ ] Web UI for non-CLI users
 - [ ] Hosted execution environment (run workflows in the cloud)
 - [ ] Team collaboration features
