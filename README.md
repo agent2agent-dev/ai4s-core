@@ -29,17 +29,23 @@ pip install ai4s-core
 
 # Set your LLM API key — supports OpenAI, DeepSeek, Anthropic, or local via Ollama
 export AI4S_LLM_PROVIDER="openai"
-export AI4S_LLM_API_KEY="sk-..."
+export AI4S_LLM_API_KEY="***"
 
 # Or use DeepSeek (cheaper, no proxy needed in China)
 export AI4S_LLM_PROVIDER="deepseek"
-export AI4S_LLM_API_KEY="sk-..."
+export AI4S_LLM_API_KEY="***"
 export AI4S_LLM_MODEL="deepseek-chat"
+
+# Or use a local model (privacy-first, zero data upload)
+export AI4S_LLM_PROVIDER="vllm"
+export AI4S_LLM_BASE_URL="http://localhost:8000/v1"
+export AI4S_LLM_MODEL="qwen3.6-35B-A3B-IQ4"
 
 # Generate a workflow
 ai4s plan "Run a GROMACS molecular dynamics simulation for protein equilibration"
 
-# Output: complete Python script with all steps, dependencies, and validation checks
+# Output: complete Python script with all steps, dependencies, validation checks,
+# and auxiliary files (MDP input files, etc.) auto-generated
 ```
 
 ### Python API
@@ -48,7 +54,15 @@ ai4s plan "Run a GROMACS molecular dynamics simulation for protein equilibration
 from ai4s_core import WorkflowOrchestrator
 
 orch = WorkflowOrchestrator()
+
+# Basic usage
 plan = orch.plan("Calculate band structure of silicon using DFT")
+
+# For limited-output models (e.g., local 35B quantized), use step-by-step strategy
+plan = orch.plan(
+    "Calculate band structure of silicon using DFT",
+    strategy="step_by_step"  # Two-phase: outline + per-step expansion
+)
 
 # Export to your preferred format
 script = orch.to_script(plan, format="python")  # or "bash", "snakemake"
@@ -58,8 +72,12 @@ print(script)
 ### No API key? Use mock mode for demo
 
 ```bash
+# Demo with pre-built realistic workflows (no LLM call, no API key)
 ai4s plan "Simulate ubiquitin in water" --mock
-# Generates a realistic workflow without calling any LLM
+
+# Available mock domains: molecular_dynamics, density_functional_theory,
+# quantum_chemistry, bioinformatics
+ai4s plan "Run RNA-seq differential expression" --mock
 ```
 
 ---
@@ -73,8 +91,11 @@ ai4s plan "Simulate ubiquitin in water" --mock
 | **Step-by-Step Workflows** | Complete with tools, commands, inputs, outputs |
 | **Dependency Graph** | Automatic step ordering and parallelization hints |
 | **Validation Checks** | Built-in sanity checks (energy convergence, temperature stability, etc.) |
+| **Auxiliary File Generation** | Auto-creates input files (MDP, Quantum ESPRESSO .in, ORCA input, R scripts) |
+| **Error Handling** | Per-step fallback strategies and output verification |
 | **Multi-Format Export** | Python, Bash, or Snakemake |
 | **Mock Mode** | Demo without API keys |
+| **Local LLM Support** | Works with Ollama, vLLM, llama.cpp — no data leaves your machine |
 
 ---
 
@@ -158,9 +179,58 @@ pytest
 
 ---
 
+## Architecture
+
+```
+ai4s-core/
+├── cli.py              # Command-line interface
+├── orchestrator.py     # Core workflow generation engine
+│   ├── plan()          # Main entry: classify domain, generate plan, validate
+│   ├── _mock_plan()    # Zero-dependency demo mode (4 domains)
+│   ├── to_script()     # Export to Python/Bash/Snakemake
+│   └── _step_to_dict() # Clean JSON serialization (no repr() artifacts)
+├── llm_interface.py   # Abstraction for OpenAI/Anthropic/Ollama/vLLM/DeepSeek
+│   ├── generate_plan()          # Single-shot generation (fast, may truncate)
+│   ├── generate_plan_step_by_step()  # Two-phase: outline + per-step expansion
+│   └── _extract_json()  # Robust JSON parsing with brace-depth fallback
+├── domain.py           # Scientific domain registry and context
+├── validation.py       # Workflow validation and sanity checks
+└── tests/              # Test suite (13 tests, all passing)
+```
+
+## Local LLM Setup (Privacy-First)
+
+For users who cannot or will not upload research data to cloud APIs:
+
+```bash
+# 1. Install llama.cpp or Ollama
+# 2. Download a science-capable model (e.g., Qwen3.5-32B, DeepSeek-R1-Distill)
+
+# 3. Configure ai4s-core to use your local endpoint
+export AI4S_LLM_PROVIDER="vllm"
+export AI4S_LLM_BASE_URL="http://localhost:8000/v1"
+export AI4S_LLM_MODEL="your-model-name"
+export AI4S_LLM_API_KEY="dummy"  # required but not validated by local servers
+
+# 4. For limited-output models, use step-by-step strategy
+python -c "
+from ai4s_core import WorkflowOrchestrator
+orch = WorkflowOrchestrator()
+plan = orch.plan('Run MD simulation of lysozyme', strategy='step_by_step')
+print(orch.to_script(plan, format='python'))
+"
+```
+
+**Verified**: qwen3.6-35B-A3B-IQ4 (llama.cpp) successfully generates correct GROMACS and Quantum ESPRESSO workflows.
+
 ## Roadmap
 
-- [ ] More scientific domains (fluid dynamics, materials science)
+- [x] Core workflow generation (MD, DFT, QC, Bioinformatics)
+- [x] Local LLM support (Ollama, vLLM, llama.cpp)
+- [x] Auxiliary file generation (MDP, input files, scripts)
+- [x] Error handling and validation
+- [x] Step-by-step generation for limited-output models
+- [ ] Real execution engine (run generated scripts, not just generate)
 - [ ] Web UI for non-CLI users
 - [ ] Hosted execution environment (run workflows in the cloud)
 - [ ] Team collaboration features
