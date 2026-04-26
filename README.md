@@ -6,7 +6,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-34%2F34-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-44%2F44-brightgreen.svg)]()
 
 ---
 
@@ -257,7 +257,7 @@ python3 scripts/mvv.py
 git clone https://github.com/agent2agent-dev/ai4s-core.git
 cd ai4s-core
 pip install -e ".[dev]"
-pytest  # 34 tests, all passing
+pytest  # 44 tests, all passing
 ```
 
 ---
