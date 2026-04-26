@@ -11,7 +11,22 @@ license = {text = "MIT"}
 authors = [
     {name = "Anbus", email = "anbus@ai4s.dev"}
 ]
-keywords = ["ai4s", "science", "workflow", "molecular-dynamics", "dft", "bioinformatics"]
+keywords = [
+    "ai4s",
+    "ai-for-science",
+    "scientific-workflow",
+    "computational-chemistry",
+    "molecular-dynamics",
+    "density-functional-theory",
+    "quantum-chemistry",
+    "bioinformatics",
+    "materials-science",
+    "snakemake",
+    "gromacs",
+    "quantum-espresso",
+    "llm",
+    "natural-language",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -21,6 +36,11 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Environment :: Console",
+    "Natural Language :: English",
 ]
 requires-python = ">=3.10"
 dependencies = [

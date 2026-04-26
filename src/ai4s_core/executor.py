@@ -67,6 +67,10 @@ class ExecutionResult:
             "error_message": self.error_message,
         }
 
+    def __repr__(self) -> str:
+        status = "OK" if self.success else "FAIL"
+        return f"ExecutionResult(step={self.step_idx}, status={status}, outputs={len(self.outputs_created)})"
+
 
 class WorkflowExecutor:
     """
@@ -135,6 +139,19 @@ class WorkflowExecutor:
                 created.append(str(full_path))
         return created
 
+    def _build_docker_cmd(self, image: str, command: str) -> List[str]:
+        """Build the docker run command parts."""
+        work_path = Path(self.work_dir).resolve()
+        return [
+            self.docker_runtime,
+            "run",
+            "--rm",
+            "-v", f"{work_path}:/work",
+            "-w", "/work",
+            image,
+            "sh", "-c", command,
+        ]
+
     def _run_docker(
         self,
         image: str,
@@ -142,21 +159,9 @@ class WorkflowExecutor:
         step: WorkflowStep,
     ) -> ExecutionResult:
         """Run a command inside a Docker container."""
-        work_path = Path(self.work_dir).resolve()
-        
-        # Build docker run command
-        cmd_parts = [
-            self.docker_runtime,
-            "run",
-            "--rm",  # Remove container after run
-            "-v", f"{work_path}:/work",
-            "-w", "/work",
-            image,
-            "sh", "-c", command,
-        ]
-        
+        cmd_parts = self._build_docker_cmd(image, command)
         print(f"  [Docker] {image}: {command[:80]}...")
-        
+
         try:
             result = subprocess.run(
                 cmd_parts,
@@ -165,9 +170,9 @@ class WorkflowExecutor:
                 timeout=3600,  # 1 hour timeout for scientific jobs
                 cwd=self.work_dir,
             )
-            
+
             outputs = self._check_outputs(step)
-            
+
             if result.returncode == 0:
                 return ExecutionResult(
                     step_idx=-1,  # Set by caller

@@ -1,43 +1,75 @@
-name: Bug Report
-description: Report a problem with ai4s-core
-title: "[BUG] "
-labels: ["bug", "triage"]
+name: "Bug Report"
+description: "Report a bug or unexpected behavior"
+labels: ["bug"]
 body:
-  - type: textarea
-    id: description
+  - type: markdown
     attributes:
-      label: Describe the bug
-      description: A clear description of what went wrong
+      value: |
+        Thanks for taking the time to report a bug!
+
+  - type: input
+    id: version
+    attributes:
+      label: "Version"
+      description: "What version of ai4s-core are you using?"
+      placeholder: "0.1.0"
     validations:
       required: true
-  - type: textarea
-    id: reproduce
+
+  - type: dropdown
+    id: domain
     attributes:
-      label: To Reproduce
-      description: Steps to reproduce
+      label: "Scientific Domain"
+      description: "Which domain were you working in?"
+      options:
+        - Molecular Dynamics
+        - Density Functional Theory
+        - Quantum Chemistry
+        - Bioinformatics
+        - Materials Science
+        - Other / Not domain-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "What happened?"
+      description: "Describe the bug"
+      placeholder: "When I run 'ai4s plan ...', I get ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "Reproduction steps"
+      description: "How can we reproduce this?"
       placeholder: |
-        1. Run command: `ai4s plan "..."`
+        1. Run `ai4s plan "..."`
         2. See error
+      render: bash
+
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
-  - type: input
-    id: domain
-    attributes:
-      label: Scientific domain
-      placeholder: e.g. Molecular Dynamics, DFT, Bioinformatics
+      label: "Expected behavior"
+      description: "What did you expect to happen?"
+
   - type: textarea
     id: environment
     attributes:
-      label: Environment
+      label: "Environment"
+      description: "Your OS, Python version, LLM provider"
       placeholder: |
         - OS: Ubuntu 22.04
         - Python: 3.11
-        - ai4s-core: 0.1.0
-        - LLM provider: OpenAI / local vllm
+        - LLM: local vLLM with qwen3.6-35B
+      render: markdown
+
   - type: textarea
     id: logs
     attributes:
-      label: Error output / logs
-      render: shell
+      label: "Logs / Output"
+      description: "Paste any relevant output"
+      render: bash
