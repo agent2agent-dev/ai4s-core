@@ -152,7 +152,8 @@ ai4s-core/
 ├── orchestrator.py     # Core workflow generation engine
 │   ├── plan()          # Main entry: classify domain, generate plan, validate
 │   ├── _mock_plan()    # Zero-dependency demo mode (5 domains)
-│   ├── to_script()     # Export to Python/Bash/Snakemake
+│   ├── execute()         # Export to Python/Bash/Snakemake (canonical)
+│   ├── to_script()       # Backward-compatible alias for execute
 │   └── _step_to_dict() # Clean JSON serialization
 ├── llm_interface.py   # Abstraction for OpenAI/Anthropic/Ollama/vLLM/DeepSeek
 │   ├── generate_plan()          # Single-shot generation
@@ -160,7 +161,7 @@ ai4s-core/
 │   └── _extract_json()  # Robust JSON parsing with brace-depth fallback
 ├── domain.py           # Scientific domain registry and context
 ├── validation.py       # Workflow validation and sanity checks
-└── tests/              # Test suite (34 tests, all passing)
+└── tests/              # Test suite (44 tests, all passing)
 ```
 
 ---
