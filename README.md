@@ -56,6 +56,7 @@ ai4s plan "Simulate ubiquitin in water" --mock
 ai4s plan "Calculate band structure of silicon" --mock
 ai4s plan "Run RNA-seq differential expression" --mock
 ai4s plan "Optimize geometry of caffeine molecule" --mock
+ai4s plan "Simulate aluminum FCC crystal with LAMMPS" --mock
 
 # List available domains
 ai4s plan --list-domains
