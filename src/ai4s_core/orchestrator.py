@@ -512,6 +512,8 @@ plot 'Si.bands.gnu' using 1:2 with lines title 'Bands' lw 2
             return self._mock_quantum_chemistry_plan(query)
         elif domain == "bioinformatics":
             return self._mock_bioinformatics_plan(query)
+        elif domain == "materials_simulation":
+            return self._mock_materials_simulation_plan(query)
         return {
             "steps": [],
             "estimated_compute": "unknown",
@@ -708,10 +710,195 @@ dev.off()
             ],
         }
 
+    def _mock_materials_simulation_plan(self, query: str) -> Dict[str, Any]:
+        """Mock plan for materials simulation (e.g., LAMMPS)."""
+        return {
+            "steps": [
+                {
+                    "tool": "atomsk",
+                    "command": "atomsk --create fcc 4.05 Al al_supercell.xyz -dup 5 5 5",
+                    "inputs": {},
+                    "outputs": {"structure": "al_supercell.xyz"},
+                    "dependencies": [],
+                    "description": "Create FCC aluminum supercell (5x5x5, 500 atoms)",
+                },
+                {
+                    "tool": "atomsk",
+                    "command": "atomsk al_supercell.xyz lammps",
+                    "inputs": {"structure": "al_supercell.xyz"},
+                    "outputs": {"data_file": "al_supercell.lmp"},
+                    "dependencies": ["0"],
+                    "description": "Convert XYZ to LAMMPS data format",
+                },
+                {
+                    "tool": "lmp",
+                    "command": "lmp -in min.in -log min.log",
+                    "inputs": {"data_file": "al_supercell.lmp"},
+                    "outputs": {"minimized": "al_minimized.lmp", "log": "min.log"},
+                    "dependencies": ["1"],
+                    "description": "Energy minimization using conjugate gradient",
+                    "auxiliary_files": {
+                        "min.in": """# Energy minimization
+units           metal
+atom_style      atomic
+boundary        p p p
+read_data       al_supercell.lmp
+pair_style      eam/alloy
+pair_coeff      * * Al_u3.eam.alloy Al
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+min_style       cg
+minimize        1.0e-10 1.0e-10 10000 100000
+write_data      al_minimized.lmp
+""",
+                    },
+                },
+                {
+                    "tool": "lmp",
+                    "command": "lmp -in nvt.in -log nvt.log",
+                    "inputs": {"minimized": "al_minimized.lmp"},
+                    "outputs": {"equilibrated": "al_nvt.lmp", "trajectory": "nvt.dump", "log": "nvt.log"},
+                    "dependencies": ["2"],
+                    "description": "NVT equilibration at 300K (50 ps)",
+                    "auxiliary_files": {
+                        "nvt.in": """# NVT equilibration
+units           metal
+atom_style      atomic
+boundary        p p p
+read_data       al_minimized.lmp
+pair_style      eam/alloy
+pair_coeff      * * Al_u3.eam.alloy Al
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        0.001
+velocity        all create 300.0 12345 dist gaussian
+fix             1 all nvt temp 300.0 300.0 0.1
+thermo          100
+thermo_style    custom step temp pe ke etotal press density
+run             50000
+write_data      al_nvt.lmp
+""",
+                    },
+                },
+                {
+                    "tool": "lmp",
+                    "command": "lmp -in npt.in -log npt.log",
+                    "inputs": {"equilibrated": "al_nvt.lmp"},
+                    "outputs": {"final": "al_npt.lmp", "trajectory": "npt.dump", "log": "npt.log"},
+                    "dependencies": ["3"],
+                    "description": "NPT equilibration at 300K, 1 bar (50 ps)",
+                    "auxiliary_files": {
+                        "npt.in": """# NPT equilibration
+units           metal
+atom_style      atomic
+boundary        p p p
+read_data       al_nvt.lmp
+pair_style      eam/alloy
+pair_coeff      * * Al_u3.eam.alloy Al
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        0.001
+fix             1 all npt temp 300.0 300.0 0.1 iso 0.0 0.0 1.0
+dump            1 all atom 100 npt.dump
+thermo          100
+thermo_style    custom step temp pe press density lx ly lz
+run             50000
+write_data      al_npt.lmp
+""",
+                    },
+                },
+                {
+                    "tool": "lmp",
+                    "command": "lmp -in production.in -log production.log",
+                    "inputs": {"final": "al_npt.lmp"},
+                    "outputs": {"trajectory": "production.dump", "log": "production.log"},
+                    "dependencies": ["4"],
+                    "description": "Production run (500 ps, properties sampling)",
+                    "auxiliary_files": {
+                        "production.in": """# Production run
+units           metal
+atom_style      atomic
+boundary        p p p
+read_data       al_npt.lmp
+pair_style      eam/alloy
+pair_coeff      * * Al_u3.eam.alloy Al
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+timestep        0.001
+fix             1 all npt temp 300.0 300.0 0.1 iso 0.0 0.0 1.0
+dump            1 all custom 100 production.dump id type x y z vx vy vz
+thermo          100
+thermo_style    custom step temp pe press density
+run             500000
+""",
+                    },
+                },
+                {
+                    "tool": "ovito",
+                    "command": "ovito production.dump -o rdf.txt -script compute_rdf.py",
+                    "inputs": {"trajectory": "production.dump"},
+                    "outputs": {"rdf": "rdf.txt"},
+                    "dependencies": ["5"],
+                    "description": "Compute radial distribution function (RDF)",
+                    "auxiliary_files": {
+                        "compute_rdf.py": """from ovito.io import import_file
+from ovito.modifiers import CoordinationAnalysisModifier
+
+pipeline = import_file("production.dump")
+modifier = CoordinationAnalysisModifier(cutoff=5.0, number_of_bins=100)
+pipeline.modifiers.append(modifier)
+
+# Export RDF data
+for frame in range(pipeline.source.num_frames):
+    data = pipeline.compute(frame)
+    rdf = data.tables['coordination-rdf']
+    with open('rdf.txt', 'a') as f:
+        for i in range(len(rdf.x)):
+            f.write(f"{rdf.x[i]} {rdf.y[i]}\\n")
+""",
+                    },
+                },
+                {
+                    "tool": "python",
+                    "command": "python3 compute_msd.py",
+                    "inputs": {"trajectory": "production.dump"},
+                    "outputs": {"msd": "msd.txt", "diffusion": "diffusion_coefficient.txt"},
+                    "dependencies": ["5"],
+                    "description": "Compute mean squared displacement and diffusion coefficient",
+                    "auxiliary_files": {
+                        "compute_msd.py": """import numpy as np
+
+# Read dump file and compute MSD
+# Simplified: assumes Ovito or MDAnalysis preprocessing
+# D = MSD / (6 * t) for 3D
+
+# Placeholder: actual implementation would parse LAMMPS dump
+times = np.linspace(0, 500, 100)  # ps
+msd = 0.5 * times  # placeholder A^2
+D = msd[-1] / (6 * times[-1])  # A^2/ps
+
+np.savetxt('msd.txt', np.column_stack([times, msd]))
+with open('diffusion_coefficient.txt', 'w') as f:
+    f.write(f"Diffusion coefficient: {D:.4f} A^2/ps = {D*1e-16:.4e} cm^2/s\\n")
+""",
+                    },
+                },
+            ],
+            "estimated_compute": "~2 hours on 8 CPU cores",
+            "required_software": ["LAMMPS", "ATOMSK", "OVITO", "Python3 + NumPy"],
+            "validation_checks": [
+                "Energy minimization converges (final energy < initial by >10%)",
+                "NVT temperature stable at 300 K ± 20 K",
+                "NPT density converges to ~2.7 g/cm^3 for aluminum",
+                "RDF shows FCC peaks at 2.86, 4.05, 4.96 Å",
+                "Diffusion coefficient is positive and physically reasonable",
+            ],
+        }
+
     def _classify_domain(self, query: str) -> str:
         """Classify the scientific domain of the query."""
         prompt = f"""Classify the following scientific query into one of these domains:
-molecular_dynamics, density_functional_theory, bioinformatics, fluid_dynamics, quantum_chemistry, other.
+molecular_dynamics, density_functional_theory, bioinformatics, materials_simulation, quantum_chemistry, other.
 
 Query: {query}
 

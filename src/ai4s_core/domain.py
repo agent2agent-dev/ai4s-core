@@ -168,6 +168,44 @@ class DomainRegistry:
             )
         )
 
+        self.register(
+            DomainSpec(
+                name="materials_simulation",
+                description="Materials science simulations with reactive and coarse-grained potentials",
+                common_tools=[
+                    "LAMMPS", "OVITO", "packmol", "VMD",
+                    "ATOMSK", "pymatgen", "ASE"
+                ],
+                file_formats=[
+                    "LAMMPS input", "data", "dump", "XYZ",
+                    "POSCAR", "CIF", "CFG", "LAMMPS trajectory"
+                ],
+                typical_workflows=[
+                    "structure_building",
+                    "potential_selection",
+                    "energy_minimization",
+                    "equilibration_nvt",
+                    "equilibration_npt",
+                    "production_run",
+                    "property_analysis",
+                ],
+                key_parameters={
+                    "pair_style": "Interatomic potential (e.g., lj/cut, eam/alloy, reax/c, sw)",
+                    "units": "Unit system (metal, real, lj, si)",
+                    "timestep": "Integration timestep (metal: 0.001 ps)",
+                    "temperature": "Simulation temperature in K",
+                    "pressure": "Simulation pressure in bar or atm",
+                    "neighbor_skin": "Neighbor list skin distance",
+                },
+                validation_rules=[
+                    "pair_style must be compatible with atom types in system",
+                    "timestep must be appropriate for pair_style (reax/c: 0.25 fs, EAM: 1 fs)",
+                    "temperature must be below melting point for production",
+                    "units must be consistent across all commands",
+                ],
+            )
+        )
+
     def register(self, spec: DomainSpec) -> None:
         """Register a new domain."""
         self._domains[spec.name] = spec
