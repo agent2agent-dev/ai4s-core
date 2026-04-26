@@ -50,7 +50,7 @@ class WorkflowOrchestrator:
         self.llm = llm or LLMInterface()
         self.domains = domain_registry or DomainRegistry()
 
-    def plan(self, query: str, domain_hint: Optional[str] = None, use_mock: bool = False) -> WorkflowPlan:
+    def plan(self, query: str, domain_hint: Optional[str] = None, use_mock: bool = False, strategy: str = "auto") -> WorkflowPlan:
         """
         Generate a workflow plan from a natural language query.
 
@@ -58,6 +58,8 @@ class WorkflowOrchestrator:
             query: Natural language description of the scientific problem.
             domain_hint: Optional domain override (e.g., 'molecular_dynamics').
             use_mock: If True, use a mock LLM for testing/demo without API keys.
+            strategy: LLM generation strategy - 'auto' (try full, fallback to step_by_step),
+                     'full' (single-shot, may truncate), 'step_by_step' (two-phase, slower but complete).
 
         Returns:
             WorkflowPlan with steps, dependencies, and resource estimates.
@@ -69,7 +71,18 @@ class WorkflowOrchestrator:
         else:
             domain = domain_hint or self._classify_domain(query)
             domain_context = self.domains.get_context(domain)
-            plan_raw = self.llm.generate_plan(query, domain_context)
+
+            # Choose generation strategy
+            if strategy == "auto":
+                # Try full plan first, fallback to step_by_step if truncated
+                plan_raw = self.llm.generate_plan(query, domain_context)
+                if plan_raw.get("_mode") == "outline" or not plan_raw.get("steps"):
+                    print("[Orchestrator] Full plan incomplete, switching to step_by_step...")
+                    plan_raw = self.llm.generate_plan_step_by_step(query, domain_context)
+            elif strategy == "step_by_step":
+                plan_raw = self.llm.generate_plan_step_by_step(query, domain_context)
+            else:
+                plan_raw = self.llm.generate_plan(query, domain_context)
 
         # Step 2: Parse and validate
         plan = self._parse_plan(query, domain, plan_raw)

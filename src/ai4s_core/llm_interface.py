@@ -188,6 +188,104 @@ Output ONLY valid JSON. No markdown, no explanations."""
 
         return plan
 
+    def generate_plan_step_by_step(self, query: str, domain_context: str) -> Dict[str, Any]:
+        """
+        Generate a workflow plan in two phases to handle limited-output models:
+        1. Generate an outline (step names + descriptions only)
+        2. Expand each step individually with full commands + auxiliary files
+
+        This is the recommended approach for models with <2000 token output limits.
+        """
+        # Phase 1: Generate outline
+        outline_prompt = f"""You are an expert computational scientist. Given a research query, list the workflow steps as a compact outline.
+
+Domain Context (summary):
+{domain_context[:300]}
+
+Research Query:
+{query}
+
+Output a compact JSON plan with ONLY step names and brief descriptions. Keep each description under 80 characters. No detailed commands needed yet.
+
+{{
+    "steps": [
+        {{
+            "tool": "tool_name",
+            "command": "# TBD",
+            "inputs": {{}},
+            "outputs": {{}},
+            "dependencies": [],
+            "description": "brief description"
+        }}
+    ],
+    "estimated_compute": "brief estimate",
+    "required_software": ["tool1"],
+    "validation_checks": ["check1"]
+}}
+
+Output ONLY valid JSON."""
+
+        outline_response = self.complete(outline_prompt, temperature=0.2, max_tokens=2000)
+        outline = self._extract_json(outline_response)
+
+        if not outline.get("steps"):
+            # Even outline failed, return empty
+            return outline
+
+        # Phase 2: Expand each step individually
+        expanded_steps = []
+        for i, step_outline in enumerate(outline["steps"]):
+            step_prompt = f"""You are an expert computational scientist. Expand this single workflow step with full executable details.
+
+Domain Context:
+{domain_context[:500]}
+
+Research Query:
+{query}
+
+Step {i}: {step_outline.get("description", "")}
+Tool: {step_outline.get("tool", "")}
+
+Generate a JSON object for this ONE step with:
+- "tool": exact tool name
+- "command": full executable shell command with realistic filenames
+- "inputs": {{"param": "value"}}
+- "outputs": {{"param": "value"}}
+- "dependencies": [{', '.join(f'"{d}"' for d in step_outline.get("dependencies", []))}]
+- "description": brief description
+- "auxiliary_files": {{"filename.ext": "file content here"}} (ONLY if this step needs input files like .mdp, .in, etc.)
+- "error_handling": {{"check_file": "output_file", "fallback": "what to do if failed"}}
+
+Output ONLY valid JSON for this single step."""
+
+            step_response = self.complete(step_prompt, temperature=0.2, max_tokens=2000)
+            step_data = self._extract_json(step_response)
+
+            # Merge with outline data, preferring expanded data
+            merged = {
+                "tool": step_data.get("tool") or step_outline.get("tool", ""),
+                "command": step_data.get("command") or step_outline.get("command", "# see documentation"),
+                "inputs": step_data.get("inputs") or step_outline.get("inputs", {}),
+                "outputs": step_data.get("outputs") or step_outline.get("outputs", {}),
+                "dependencies": step_data.get("dependencies") or step_outline.get("dependencies", []),
+                "description": step_data.get("description") or step_outline.get("description", ""),
+                "auxiliary_files": step_data.get("auxiliary_files", {}),
+                "error_handling": step_data.get("error_handling", {}),
+            }
+            expanded_steps.append(merged)
+
+        # Rebuild the full plan
+        full_plan = {
+            "steps": expanded_steps,
+            "estimated_compute": outline.get("estimated_compute", "unknown"),
+            "required_software": outline.get("required_software", []),
+            "validation_checks": outline.get("validation_checks", []),
+            "_mode": "step_by_step",
+            "_note": "Generated via two-phase approach: outline + per-step expansion for limited-output models.",
+        }
+
+        return full_plan
+
     def _extract_json(self, response: str) -> Dict[str, Any]:
         """Extract JSON from LLM response with multiple fallback strategies."""
         try:
