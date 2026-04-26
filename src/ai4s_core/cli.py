@@ -48,6 +48,8 @@ def cmd_plan(args: argparse.Namespace) -> int:
                     "outputs": s.outputs,
                     "dependencies": s.dependencies,
                     "description": s.description,
+                    "auxiliary_files": s.auxiliary_files,
+                    "error_handling": s.error_handling,
                 }
                 for s in plan.steps
             ],
@@ -57,12 +59,16 @@ def cmd_plan(args: argparse.Namespace) -> int:
         }
         print(json.dumps(output, indent=2))
     else:
-        script = orch.to_script(plan, format=args.format)
+        script = orch.execute(plan, format=args.format)
         if args.output:
             Path(args.output).write_text(script)
             print(f"Script written to: {args.output}", file=sys.stderr)
         else:
             print(script)
+
+    # Execute workflow if --work-dir specified
+    if getattr(args, "work_dir", None):
+        orch.execute(plan, format=args.format, work_dir=args.work_dir)
 
     return 0
 
@@ -121,6 +127,7 @@ def main() -> int:
     plan_parser.add_argument("--output", "-o", help="Output file path")
     plan_parser.add_argument("--json", action="store_true", help="Output raw JSON plan")
     plan_parser.add_argument("--mock", action="store_true", help="Use mock LLM for demo (no API key needed)")
+    plan_parser.add_argument("--work-dir", help="Execute workflow in this directory (uses Docker containers)")
     plan_parser.set_defaults(func=cmd_plan)
 
     # list-domains command

@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from ai4s_core.llm_interface import LLMInterface
 from ai4s_core.domain import DomainRegistry
-from ai4s_core.validation import WorkflowValidator
+from ai4s_core.validation import RuleRegistry
 
 
 def test_basic_connectivity():
@@ -154,7 +154,7 @@ def test_json_schema(plan: dict) -> bool:
     print("TEST 5: JSON Schema Validation")
     print("=" * 60)
 
-    validator = WorkflowValidator()
+    validator = RuleRegistry()
     # TODO: Add schema validation
 
     required_keys = ["steps", "estimated_compute", "required_software", "validation_checks"]

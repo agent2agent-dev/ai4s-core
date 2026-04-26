@@ -785,25 +785,45 @@ Respond with only the domain name."""
 
         return plan
 
-    def to_script(self, plan: WorkflowPlan, format: str = "python") -> str:
+    def execute(self, plan: WorkflowPlan, format: str = "python", work_dir: Optional[str] = None) -> str:
         """
-        Convert a workflow plan to an executable script.
+        Convert a workflow plan to an executable script and optionally run it.
+
+        This replaces the old `to_script()` method. If you only need the script
+        without execution, call with `work_dir=None` (default).
 
         Args:
             plan: The workflow plan to convert.
             format: Output format - 'python', 'bash', 'snakemake', 'cwl'.
+            work_dir: Working directory for execution (if None, scripts are generated but not run).
 
         Returns:
             Executable script as a string.
         """
         if format == "python":
-            return self._to_python(plan)
+            script = self._to_python(plan)
         elif format == "bash":
-            return self._to_bash(plan)
+            script = self._to_bash(plan)
         elif format == "snakemake":
-            return self._to_snakemake(plan)
+            script = self._to_snakemake(plan)
         else:
             raise ValueError(f"Unsupported format: {format}")
+
+        # If work_dir provided, write and optionally execute
+        if work_dir:
+            import os
+            from .executor import WorkflowExecutor, dry_run
+            # First do a dry run to show what will happen
+            dry_run(plan, work_dir)
+            # Then execute
+            executor = WorkflowExecutor(use_docker=True, work_dir=work_dir)
+            executor.execute_plan(plan)
+            executor.save_results(os.path.join(work_dir, "execution_results.json"))
+
+        return script
+
+    # Backward compatibility alias
+    to_script = execute
 
     def _step_to_dict(self, step: WorkflowStep) -> Dict[str, Any]:
         """Convert a WorkflowStep to a plain dict for JSON serialization."""

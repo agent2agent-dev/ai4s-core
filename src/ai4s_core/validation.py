@@ -130,6 +130,54 @@ class RuleRegistry:
                 self._check_dft_ecutwfc,
                 "Plane-wave cutoff must be positive and reasonable",
             ),
+            Rule(
+                "dft_kpoint_density",
+                self._check_dft_kpoints,
+                "K-point sampling should be sufficient for the system size",
+            ),
+            Rule(
+                "dft_smearing_metal",
+                self._check_dft_smearing,
+                "Metallic systems need smearing for SCF convergence",
+            ),
+        ]
+
+        # Quantum chemistry rules
+        self._domain_rules["quantum_chemistry"] = [
+            Rule(
+                "qc_has_optimization",
+                self._check_qc_optimization,
+                "QC workflow should include geometry optimization",
+            ),
+            Rule(
+                "qc_basis_set_reasonable",
+                self._check_qc_basis_set,
+                "Basis set should be appropriate for the system",
+            ),
+            Rule(
+                "qc_charge_multiplicity",
+                self._check_qc_charge_multiplicity,
+                "Charge and multiplicity should be consistent",
+            ),
+        ]
+
+        # Bioinformatics rules
+        self._domain_rules["bioinformatics"] = [
+            Rule(
+                "bio_has_quality_control",
+                self._check_bio_quality_control,
+                "Bioinformatics workflow should include QC step",
+            ),
+            Rule(
+                "bio_has_alignment",
+                self._check_bio_alignment,
+                "Sequence workflow should include alignment step",
+            ),
+            Rule(
+                "bio_replicates_sufficient",
+                self._check_bio_replicates,
+                "Differential expression needs biological replicates",
+            ),
         ]
 
     def _check_non_empty_steps(
@@ -358,6 +406,227 @@ class RuleRegistry:
                                 suggestion="Verify this cutoff is necessary for your pseudopotential",
                             )
                         )
+        return issues
+
+    def _check_dft_kpoints(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        for i, step in enumerate(plan.steps):
+            cmd = step.command.lower()
+            if "kpoints" in cmd or "k_points" in cmd:
+                import re
+                meshes = re.findall(r"(\d+)\s+(\d+)\s+(\d+)", cmd)
+                for mesh in meshes:
+                    kx, ky, kz = int(mesh[0]), int(mesh[1]), int(mesh[2])
+                    total = kx * ky * kz
+                    if total < 1:
+                        issues.append(
+                            ValidationIssue(
+                                severity=Severity.ERROR,
+                                step_index=i,
+                                field="command",
+                                message=f"K-point mesh {kx}x{ky}x{kz} is invalid",
+                                suggestion="Use at least 1x1x1 k-point mesh",
+                            )
+                        )
+                    elif total < 8:
+                        issues.append(
+                            ValidationIssue(
+                                severity=Severity.WARNING,
+                                step_index=i,
+                                field="command",
+                                message=f"K-point mesh {kx}x{ky}x{kz} may be too coarse",
+                                suggestion="For accurate results, use at least 4x4x4 or Monkhorst-Pack sampling",
+                            )
+                        )
+        return issues
+
+    def _check_dft_smearing(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        has_smearing = False
+        for i, step in enumerate(plan.steps):
+            cmd = step.command.lower()
+            if any(x in cmd for x in ["smearing", "degauss", "occupations", "metal"]):
+                has_smearing = True
+            if "occupations='smearing'" in cmd or "degauss" in cmd:
+                import re
+                degs = re.findall(r"degauss\s*=\s*(\d+\.?\d*)", cmd)
+                for d in degs:
+                    deg = float(d)
+                    if deg > 0.05:
+                        issues.append(
+                            ValidationIssue(
+                                severity=Severity.WARNING,
+                                step_index=i,
+                                field="command",
+                                message=f"Smearing width {deg} Ry is large",
+                                suggestion="Typical degauss is 0.01-0.02 Ry for metals",
+                            )
+                        )
+        if not has_smearing and len(plan.steps) > 2:
+            issues.append(
+                ValidationIssue(
+                    severity=Severity.INFO,
+                    step_index=None,
+                    field="steps",
+                    message="No smearing detected. If system is metallic, add smearing for SCF convergence",
+                    suggestion="Add occupations='smearing' and degauss for metallic systems",
+                )
+            )
+        return issues
+
+    def _check_qc_optimization(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        has_opt = any(
+            "opt" in step.command.lower() or "optimize" in step.description.lower()
+            for step in plan.steps
+        )
+        if not has_opt and len(plan.steps) > 1:
+            issues.append(
+                ValidationIssue(
+                    severity=Severity.WARNING,
+                    step_index=None,
+                    field="steps",
+                    message="QC workflow may be missing geometry optimization",
+                    suggestion="Add geometry optimization before frequency or property calculations",
+                )
+            )
+        return issues
+
+    def _check_qc_basis_set(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        for i, step in enumerate(plan.steps):
+            cmd = step.command.lower()
+            if "basis" in cmd:
+                import re
+                basis_match = re.search(r"basis\s*[=\s]+\s*['\"]([^'\"]+)['\"]", cmd)
+                if basis_match:
+                    basis = basis_match.group(1).lower()
+                    minimal_sets = ["sto-3g", "3-21g", "6-31g"]
+                    if any(b in basis for b in minimal_sets):
+                        issues.append(
+                            ValidationIssue(
+                                severity=Severity.WARNING,
+                                step_index=i,
+                                field="command",
+                                message=f"Basis set '{basis}' is minimal",
+                                suggestion="Consider def2-TZVP or 6-311++G(d,p) for publication-quality results",
+                            )
+                        )
+        return issues
+
+    def _check_qc_charge_multiplicity(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        for i, step in enumerate(plan.steps):
+            cmd = step.command.lower()
+            if "charge" in cmd or "mult" in cmd:
+                import re
+                charges = re.findall(r"charge\s*[=\s]+\s*(-?\d+)", cmd)
+                mults = re.findall(r"mult\s*[=\s]+\s*(\d+)", cmd)
+                for charge in charges:
+                    ch = int(charge)
+                    if abs(ch) > 5:
+                        issues.append(
+                            ValidationIssue(
+                                severity=Severity.WARNING,
+                                step_index=i,
+                                field="command",
+                                message=f"Charge = {ch} is unusual",
+                                suggestion="Verify this charge is correct for your molecule",
+                            )
+                        )
+                for mult in mults:
+                    m = int(mult)
+                    if m < 1:
+                        issues.append(
+                            ValidationIssue(
+                                severity=Severity.ERROR,
+                                step_index=i,
+                                field="command",
+                                message=f"Multiplicity = {m} is invalid (must be >= 1)",
+                                suggestion="Multiplicity = 2S+1 where S is total spin",
+                            )
+                        )
+        return issues
+
+    def _check_bio_quality_control(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        has_qc = any(
+            "fastqc" in step.tool.lower() or "qc" in step.description.lower()
+            or "quality" in step.description.lower() or "trim" in step.tool.lower()
+            for step in plan.steps
+        )
+        if not has_qc and len(plan.steps) > 1:
+            issues.append(
+                ValidationIssue(
+                    severity=Severity.WARNING,
+                    step_index=None,
+                    field="steps",
+                    message="Bioinformatics workflow may be missing quality control",
+                    suggestion="Add FastQC and/or trimming step before alignment",
+                )
+            )
+        return issues
+
+    def _check_bio_alignment(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        has_align = any(
+            "align" in step.description.lower() or "bwa" in step.tool.lower()
+            or "hisat" in step.tool.lower() or "bowtie" in step.tool.lower()
+            or "star" in step.tool.lower() or "minimap" in step.tool.lower()
+            for step in plan.steps
+        )
+        if not has_align and len(plan.steps) > 2:
+            issues.append(
+                ValidationIssue(
+                    severity=Severity.WARNING,
+                    step_index=None,
+                    field="steps",
+                    message="Sequence workflow may be missing alignment step",
+                    suggestion="Add alignment step (BWA, HISAT2, STAR, etc.)",
+                )
+            )
+        return issues
+
+    def _check_bio_replicates(
+        self, plan: WorkflowPlan, spec: Optional[DomainSpec]
+    ) -> List[ValidationIssue]:
+        issues = []
+        has_de = any(
+            "deseq" in step.tool.lower() or "edge" in step.tool.lower()
+            or "diff" in step.description.lower() or "expression" in step.description.lower()
+            for step in plan.steps
+        )
+        if has_de:
+            replicate_count = 0
+            for step in plan.steps:
+                if "sample" in step.description.lower() or "replicate" in step.description.lower():
+                    import re
+                    reps = re.findall(r"(\d+)\s*replicate", step.description.lower())
+                    replicate_count = max(replicate_count, max((int(r) for r in reps), default=0))
+            if replicate_count < 3:
+                issues.append(
+                    ValidationIssue(
+                        severity=Severity.WARNING,
+                        step_index=None,
+                        field="steps",
+                        message="Differential expression with < 3 replicates per condition",
+                        suggestion="Use at least 3 biological replicates for reliable DE analysis",
+                    )
+                )
         return issues
 
     def get_rules(self, domain: str) -> List[Rule]:
