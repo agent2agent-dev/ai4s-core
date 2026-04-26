@@ -206,11 +206,34 @@ class WorkflowExecutor:
         step: WorkflowStep,
     ) -> ExecutionResult:
         """Run a command locally using subprocess."""
-        print(f"  [Local] {command[:80]}...")
+        import shutil
+        
+        # Auto-convert wget to curl if wget unavailable
+        cmd = command
+        if "wget " in cmd:
+            if not shutil.which("wget"):
+                if shutil.which("curl"):
+                    cmd = cmd.replace("wget ", "curl -sL ")
+                    # If no -o flag, add one based on URL
+                    parts = cmd.split()
+                    url_idx = -1
+                    for i, p in enumerate(parts):
+                        if p.startswith("http"):
+                            url_idx = i
+                            break
+                    if url_idx > 0 and "-o" not in cmd:
+                        url = parts[url_idx]
+                        filename = url.split("/")[-1]
+                        parts.insert(url_idx + 1, "-o")
+                        parts.insert(url_idx + 2, filename)
+                        cmd = " ".join(parts)
+                    print(f"    [Auto-converted] wget -> curl: {cmd[:80]}...")
+        
+        print(f"  [Local] {cmd[:80]}...")
         
         try:
             result = subprocess.run(
-                command,
+                cmd,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -311,6 +334,12 @@ class WorkflowExecutor:
         Returns:
             List of ExecutionResult for each step.
         """
+        import os
+        
+        # Ensure work directory exists
+        if self.work_dir:
+            os.makedirs(self.work_dir, exist_ok=True)
+        
         print(f"\n{'='*60}")
         print(f"Executing workflow: {plan.query}")
         print(f"Domain: {plan.domain}")
