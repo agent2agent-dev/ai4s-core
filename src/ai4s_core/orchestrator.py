@@ -996,20 +996,13 @@ Respond with only the domain name."""
         else:
             raise ValueError(f"Unsupported format: {format}")
 
-        # If work_dir provided, write and optionally execute
-        if work_dir:
-            import os
-            from .executor import WorkflowExecutor, dry_run
-            # First do a dry run to show what will happen
-            dry_run(plan, work_dir)
-            # Then execute
-            executor = WorkflowExecutor(use_docker=True, work_dir=work_dir)
+        if work_dir is not None:
+            from .executor import WorkflowExecutor
+            executor = WorkflowExecutor(work_dir=work_dir)
             executor.execute_plan(plan)
-            executor.save_results(os.path.join(work_dir, "execution_results.json"))
 
         return script
 
-    # Backward compatibility alias
     to_script = execute
 
     def _step_to_dict(self, step: WorkflowStep) -> Dict[str, Any]:

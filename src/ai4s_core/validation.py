@@ -644,3 +644,10 @@ class RuleRegistry:
             for issue in issues:
                 report.add(issue)
         return report
+
+    def validate_batch(self, plans: List[WorkflowPlan]) -> Dict[str, ValidationReport]:
+        """Validate multiple workflow plans and return reports keyed by plan query."""
+        reports = {}
+        for plan in plans:
+            reports[plan.query] = self.validate(plan)
+        return reports
